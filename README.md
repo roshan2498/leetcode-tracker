@@ -1,36 +1,89 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# LeetCode Tracker
 
-## Getting Started
+A Next.js application that helps you track your LeetCode progress by company. This app uses the [leetcode-company-wise-problems](https://github.com/liquidslr/leetcode-company-wise-problems) repository to provide company-specific problem lists.
 
-First, run the development server:
+## Features
+
+- 🔐 Google OAuth authentication
+- 📊 Progress tracking by company
+- 📈 Visual progress statistics
+- 🏢 Company-wise problem organization
+- ⏰ Time-based problem filtering (30 days, 3 months, 6 months, etc.)
+- �� Persistent progress storage
+
+## Setup
+
+### 1. Clone and Install Dependencies
+
+```bash
+git clone <your-repo-url>
+cd leetcode-tracker
+npm install
+```
+
+### 2. Set up Google OAuth
+
+1. Go to the [Google Cloud Console](https://console.cloud.google.com/)
+2. Create a new project or select an existing one
+3. Enable the Google+ API
+4. Create OAuth 2.0 credentials
+5. Add `http://localhost:3000/api/auth/callback/google` to authorized redirect URIs
+
+### 3. Environment Variables
+
+Create a `.env` file in the root directory:
+
+```env
+DATABASE_URL="file:./dev.db"
+NEXTAUTH_URL="http://localhost:3000"
+NEXTAUTH_SECRET="your-secret-key-here"
+GOOGLE_CLIENT_ID="your-google-client-id"
+GOOGLE_CLIENT_SECRET="your-google-client-secret"
+```
+
+### 4. Database Setup
+
+```bash
+npx prisma generate
+npx prisma migrate dev
+```
+
+### 5. Run the Application
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Visit `http://localhost:3000` to see the application.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Usage
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. **Sign In**: Click "Sign in with Google" to authenticate
+2. **Select Company**: Choose a company from the sidebar to view their problems
+3. **Track Progress**: Use the dropdown next to each problem to mark your progress:
+   - Not Started
+   - In Progress
+   - Completed
+4. **View Stats**: See your completion rate and progress statistics in the sidebar
 
-## Learn More
+## Data Source
 
-To learn more about Next.js, take a look at the following resources:
+This application uses data from the [leetcode-company-wise-problems](https://github.com/liquidslr/leetcode-company-wise-problems) repository, which contains curated lists of LeetCode questions grouped by companies.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Tech Stack
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- **Frontend**: Next.js 14, React, TypeScript, Tailwind CSS
+- **Authentication**: NextAuth.js with Google OAuth
+- **Database**: SQLite with Prisma ORM
+- **Data**: CSV files from leetcode-company-wise-problems repository
 
-## Deploy on Vercel
+## Contributing
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Submit a pull request
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## License
+
+MIT License
