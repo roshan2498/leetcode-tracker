@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 
+// Required for static export
+export const dynamic = 'force-static';
+export const revalidate = false;
+
 export async function GET() {
   try {
     const dataPath = path.join(process.cwd(), "public", "data");

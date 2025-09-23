@@ -13,9 +13,23 @@ export default function Dashboard() {
 
   // Load selected company from localStorage and fetch companies
   useEffect(() => {
-    fetch("/api/companies")
-      .then((res) => res.json())
-      .then((data) => {
+    // Try API first, fallback to static JSON for static export
+    const loadCompanies = async () => {
+      try {
+        let data;
+        try {
+          const apiResponse = await fetch("/api/companies");
+          if (apiResponse.ok) {
+            data = await apiResponse.json();
+          } else {
+            throw new Error("API not available");
+          }
+        } catch {
+          // Fallback to static companies.json for static export
+          const staticResponse = await fetch("/companies.json");
+          data = await staticResponse.json();
+        }
+        
         setCompanies(data);
         
         // Try to restore from localStorage
@@ -26,8 +40,12 @@ export default function Dashboard() {
         } else if (data.length > 0) {
           setSelectedCompany(data[0]);
         }
-      })
-      .catch((error) => console.error("Error fetching companies:", error));
+      } catch (error) {
+        console.error("Error fetching companies:", error);
+      }
+    };
+    
+    loadCompanies();
   }, []);
 
   // Save selected company to localStorage whenever it changes

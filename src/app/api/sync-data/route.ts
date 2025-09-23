@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { exec } from "child_process";
 import { promisify } from "util";
 
+// Required for static export
+export const dynamic = 'force-static';
+export const revalidate = false;
+
 const execAsync = promisify(exec);
 
 export async function POST(request: NextRequest) {

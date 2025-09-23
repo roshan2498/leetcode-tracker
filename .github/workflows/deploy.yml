@@ -96,6 +96,7 @@ jobs:
         run: npm run build
         env:
           SKIP_ENV_VALIDATION: true
+          BUILD_STATIC: true
           
       - name: Setup Pages
         uses: actions/configure-pages@v4
