@@ -128,14 +128,7 @@ jobs:
           url=$(vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }})
           echo "production_url=$url" >> $GITHUB_OUTPUT
           
-      - name: Run Database Migrations
-        run: |
-          # Install dependencies for migration
-          npm ci
-          # Run Prisma migrations on production database
-          npx prisma migrate deploy
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      # Database migrations removed - using client-side local storage
           
       - name: Create GitHub Release
         uses: actions/create-release@v1
@@ -152,14 +145,14 @@ jobs:
             **Build:** #${{ github.run_number }}
             
             **Features in this release:**
-            - ✅ Neural interface with futuristic UI
+            - ✅ Clean, simplified interface
             - ✅ Advanced search and pagination
-            - ✅ Dark/Light theme support
             - ✅ Progress tracking with localStorage
             - ✅ Company-wise problem filtering
+            - ✅ Client-side data storage
             
             **Technical Stack:**
             - Next.js 15 with Turbopack
-            - Prisma with PostgreSQL
-            - NextAuth.js for authentication
-            - Tailwind CSS with glassmorphism effects 
+            - Client-side local storage
+            - Tailwind CSS with modern design
+            - Automated data sync pipeline 
