@@ -1,14 +1,10 @@
-name: Deploy to Vercel
+name: Build and Test
 
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
-
-env:
-  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-  VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
 jobs:
   test:
@@ -39,120 +35,24 @@ jobs:
         env:
           SKIP_ENV_VALIDATION: true
 
-  deploy-preview:
-    runs-on: ubuntu-latest
-    name: Deploy Preview
-    needs: test
-    if: github.event_name == 'pull_request'
-    
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-          cache: 'npm'
-          
-      - name: Install Vercel CLI
-        run: npm install --global vercel@latest
-        
-      - name: Pull Vercel Environment Information
-        run: vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
-        
-      - name: Build Project Artifacts
-        run: vercel build --token=${{ secrets.VERCEL_TOKEN }}
-        
-      - name: Deploy Project Artifacts to Vercel
-        id: deploy
+      - name: Create Build Summary
+        if: success()
         run: |
-          url=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }})
-          echo "preview_url=$url" >> $GITHUB_OUTPUT
-          
-      - name: Comment PR
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const { preview_url } = process.env;
-            const comment = `🚀 **Preview Deployment Ready!**
-            
-            ✅ Your preview deployment is ready at: ${preview_url}
-            
-            📱 **Test the deployment:**
-            - [ ] Authentication flow
-            - [ ] Company selection
-            - [ ] Problem list pagination
-            - [ ] Progress tracking
-            - [ ] Theme toggle
-            
-            This preview will be automatically deleted after the PR is merged.`;
-            
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: comment
-            });
-        env:
-          preview_url: ${{ steps.deploy.outputs.preview_url }}
-
-  deploy-production:
-    runs-on: ubuntu-latest
-    name: Deploy Production
-    needs: test
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-          cache: 'npm'
-          
-      - name: Install Vercel CLI
-        run: npm install --global vercel@latest
-        
-      - name: Pull Vercel Environment Information
-        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
-        
-      - name: Build Project Artifacts
-        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
-        
-      - name: Deploy Project Artifacts to Vercel
-        id: deploy
-        run: |
-          url=$(vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }})
-          echo "production_url=$url" >> $GITHUB_OUTPUT
-          
-      # Database migrations removed - using client-side local storage
-          
-      - name: Create GitHub Release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: v${{ github.run_number }}
-          release_name: Release v${{ github.run_number }}
-          body: |
-            🚀 **LeetCode Nexus Production Deployment**
-            
-            **Deployment URL:** ${{ steps.deploy.outputs.production_url }}
-            **Commit:** ${{ github.sha }}
-            **Build:** #${{ github.run_number }}
-            
-            **Features in this release:**
-            - ✅ Clean, simplified interface
-            - ✅ Advanced search and pagination
-            - ✅ Progress tracking with localStorage
-            - ✅ Company-wise problem filtering
-            - ✅ Client-side data storage
-            
-            **Technical Stack:**
-            - Next.js 15 with Turbopack
-            - Client-side local storage
-            - Tailwind CSS with modern design
-            - Automated data sync pipeline 
+          echo "## ✅ Build Successful!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Build Details:**" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Linting passed" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ TypeScript compilation successful" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Next.js build completed" >> $GITHUB_STEP_SUMMARY
+          echo "- 📦 Ready for deployment" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Deploy Options:**" >> $GITHUB_STEP_SUMMARY
+          echo "- 🚀 Manual deploy to Vercel: \`vercel --prod\`" >> $GITHUB_STEP_SUMMARY
+          echo "- 🌐 Deploy to Netlify: Drag & drop \`.next\` folder" >> $GITHUB_STEP_SUMMARY
+          echo "- 🐳 Docker deploy: \`docker build -t leetcode-tracker .\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Features:**" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Client-side local storage" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Company-wise problem filtering" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Progress tracking" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Responsive design" >> $GITHUB_STEP_SUMMARY 
