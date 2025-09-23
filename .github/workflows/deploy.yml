@@ -1,4 +1,4 @@
-name: Build and Test
+name: Build and Deploy
 
 on:
   push:
@@ -35,24 +35,128 @@ jobs:
         env:
           SKIP_ENV_VALIDATION: true
 
-      - name: Create Build Summary
-        if: success()
+  # Optional Vercel deployment (only if secrets are configured)
+  deploy-vercel:
+    runs-on: ubuntu-latest
+    name: Deploy to Vercel
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && vars.ENABLE_VERCEL_DEPLOY == 'true'
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Deploy to Vercel
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          vercel-args: '--prod'
+
+  # GitHub Pages deployment (always available)
+  deploy-pages:
+    runs-on: ubuntu-latest
+    name: Deploy to GitHub Pages
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Build for static export
+        run: npm run build
+        env:
+          SKIP_ENV_VALIDATION: true
+          
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+        
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './out'
+          
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  # Build summary (always runs)
+  summary:
+    runs-on: ubuntu-latest
+    name: Build Summary
+    needs: [test, deploy-vercel, deploy-pages]
+    if: always()
+    
+    steps:
+      - name: Create Summary
         run: |
-          echo "## ✅ Build Successful!" >> $GITHUB_STEP_SUMMARY
+          echo "## 🚀 LeetCode Tracker Deployment Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Build Details:**" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Linting passed" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ TypeScript compilation successful" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Next.js build completed" >> $GITHUB_STEP_SUMMARY
-          echo "- 📦 Ready for deployment" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ needs.test.result }}" == "success" ]; then
+            echo "✅ **Build & Test**: Passed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Build & Test**: Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "${{ needs.deploy-vercel.result }}" == "success" ]; then
+            echo "✅ **Vercel Deployment**: Success" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ needs.deploy-vercel.result }}" == "skipped" ]; then
+            echo "⏭️ **Vercel Deployment**: Skipped (not configured)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Vercel Deployment**: Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "${{ needs.deploy-pages.result }}" == "success" ]; then
+            echo "✅ **GitHub Pages**: Success" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **GitHub Pages**: Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+          
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Deploy Options:**" >> $GITHUB_STEP_SUMMARY
-          echo "- 🚀 Manual deploy to Vercel: \`vercel --prod\`" >> $GITHUB_STEP_SUMMARY
-          echo "- 🌐 Deploy to Netlify: Drag & drop \`.next\` folder" >> $GITHUB_STEP_SUMMARY
-          echo "- 🐳 Docker deploy: \`docker build -t leetcode-tracker .\`" >> $GITHUB_STEP_SUMMARY
+          echo "## 🎯 Access Your App" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Features:**" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Client-side local storage" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Company-wise problem filtering" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Progress tracking" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Responsive design" >> $GITHUB_STEP_SUMMARY 
+          echo "- 📄 **GitHub Pages**: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 🚀 **Vercel**: Check deployment logs above" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 🛠️ Manual Deployment Options" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "```bash" >> $GITHUB_STEP_SUMMARY
+          echo "# Vercel CLI" >> $GITHUB_STEP_SUMMARY
+          echo "npm i -g vercel && vercel --prod" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "# Netlify CLI" >> $GITHUB_STEP_SUMMARY
+          echo "npm i -g netlify-cli && netlify deploy --prod" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "# Docker" >> $GITHUB_STEP_SUMMARY
+          echo "docker build -t leetcode-tracker . && docker run -p 3000:3000 leetcode-tracker" >> $GITHUB_STEP_SUMMARY
+          echo "```" >> $GITHUB_STEP_SUMMARY 

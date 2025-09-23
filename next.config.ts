@@ -1,38 +1,19 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Image optimization
+  // Enable static export for GitHub Pages deployment
+  output: 'export',
+  
+  // Disable image optimization for static export
   images: {
-    remotePatterns: [
-      {
-        protocol: "https",
-        hostname: "lh3.googleusercontent.com",
-        port: "",
-        pathname: "/**",
-      },
-      {
-        protocol: "https",
-        hostname: "lh4.googleusercontent.com",
-        port: "",
-        pathname: "/**",
-      },
-      {
-        protocol: "https",
-        hostname: "lh5.googleusercontent.com",
-        port: "",
-        pathname: "/**",
-      },
-      {
-        protocol: "https",
-        hostname: "lh6.googleusercontent.com",
-        port: "",
-        pathname: "/**",
-      },
-    ],
+    unoptimized: true,
   },
 
-  // External packages for server components (moved from experimental)
-  serverExternalPackages: ['@prisma/client', 'prisma'],
+  // Base path for GitHub Pages (will be overridden in production)
+  basePath: process.env.NODE_ENV === 'production' ? '' : '',
+  
+  // Ensure trailing slashes are handled correctly
+  trailingSlash: true,
 
   // Performance optimizations
   experimental: {
@@ -58,10 +39,6 @@ const nextConfig: NextConfig = {
           {
             key: 'X-DNS-Prefetch-Control',
             value: 'on'
-          },
-          {
-            key: 'Strict-Transport-Security',
-            value: 'max-age=63072000; includeSubDomains; preload'
           },
           {
             key: 'X-XSS-Protection',
