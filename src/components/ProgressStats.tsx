@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { ProgressStatus, UserProgress } from "@/types";
+import { ProgressStatus } from "@/types";
+import { getProgressForCompany } from "@/lib/localStorage";
 import { TrendingUp, CheckCircle2, Clock, AlertCircle, BarChart3 } from "lucide-react";
 
 interface ProgressStatsProps {
@@ -19,15 +20,13 @@ export default function ProgressStats({ selectedCompany }: ProgressStatsProps) {
     if (!selectedCompany) return;
 
     try {
-      const response = await fetch("/api/progress");
-      const progress: UserProgress[] = await response.json();
-      
-      const companyProgress = progress.filter(
-        (p) => p.company === selectedCompany
-      );
+      // Load progress from local storage
+      const progress = getProgressForCompany(selectedCompany);
 
-      const newStats = companyProgress.reduce(
-        (acc: ProgressStatus, p: UserProgress) => {
+      const newStats = progress.reduce(
+        (acc: ProgressStatus, p: {
+          status: "not_started" | "in_progress" | "completed";
+        }) => {
           acc[p.status as keyof ProgressStatus]++;
           return acc;
         },

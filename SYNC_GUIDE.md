@@ -2,18 +2,17 @@
 
 This guide explains the automated synchronization system that keeps your LeetCode Nexus application up-to-date with the latest problems from the [LeetCode Questions CompanyWise](https://github.com/krishnadey30/LeetCode-Questions-CompanyWise) repository.
 
-## 🏗️ System Architecture
+## 🏗️ Simplified Architecture
 
 ```mermaid
 graph TD
     A[LeetCode Source Repo] -->|Monitors Changes| B[GitHub Actions Sync]
     B -->|Detects Updates| C[Change Detection Script]
     C -->|Validates Data| D[Data Validation Script]
-    D -->|Syncs to DB| E[Database Sync Script]
-    E -->|Updates Files| F[Your Repository]
-    F -->|Auto Deploy| G[Vercel Production]
-    B -->|On Failure| H[GitHub Issue]
-    B -->|On Success| I[Deployment Notification]
+    D -->|Updates Files| E[Your Repository]
+    E -->|Auto Deploy| F[Vercel Production]
+    B -->|On Failure| G[GitHub Issue]
+    B -->|On Success| H[Deployment Notification]
 ```
 
 ## ⚙️ Components Overview
@@ -26,13 +25,12 @@ graph TD
 ### 2. **Core Scripts**
 - **`scripts/detect-changes.js`**: Compares source vs current data
 - **`scripts/validate-data.js`**: Validates CSV data integrity  
-- **`scripts/sync-database.js`**: Syncs data to PostgreSQL database
 - **`scripts/generate-companies-list.js`**: Generates companies metadata
 
-### 3. **Database Schema**
-- **Companies**: Tracks company information and status
-- **Problems**: Stores structured problem data with relationships
-- **SyncLog**: Records synchronization history and metadata
+### 3. **Data Storage**
+- **Local Files**: CSV files stored in `/public/data/`
+- **Client Storage**: User progress stored in browser's local storage
+- **No Database**: Simplified architecture without server-side storage
 
 ## 🚀 How It Works
 
@@ -48,209 +46,169 @@ graph TD
 3. **Completeness Check**: Verifies all required files are present
 4. **Error Reporting**: Reports any data quality issues
 
-### Phase 3: Database Synchronization
-1. **Parse CSV Files**: Reads and processes problem data
-2. **Company Management**: Updates company records and status
-3. **Problem Upserts**: Adds new problems and updates existing ones
-4. **Cleanup**: Marks inactive companies and old data
-5. **Metadata Recording**: Logs sync statistics and errors
+### Phase 3: File Synchronization
+1. **Update Repository**: Commits new CSV files to your repository
+2. **Maintain Structure**: Preserves directory organization
+3. **Generate Metadata**: Creates company list and statistics
+4. **Trigger Deployment**: Automatic Vercel deployment
 
 ### Phase 4: Deployment & Notification
-1. **File Updates**: Commits new data to repository
-2. **Trigger Deployment**: Initiates Vercel production deployment
-3. **Success Notification**: Reports sync statistics
-4. **Error Handling**: Creates GitHub issues for failures
+1. **Automatic Deploy**: Vercel deploys updated application
+2. **Webhook Notification**: Optional webhook for sync completion
+3. **Error Handling**: Creates GitHub issues for failures
+4. **Status Updates**: Posts deployment status
 
-## 📊 Sync Statistics & Monitoring
+## 📁 Directory Structure
 
-### Database Tracking
-Every sync operation records:
-- Companies processed count
-- Problems added/updated/skipped
-- Error count and details
-- Execution duration
-- Status (SUCCESS, FAILED, COMPLETED_WITH_ERRORS)
-
-### Sync Status Monitoring
-```sql
--- View recent sync history
-SELECT 
-  status,
-  companiesProcessed,
-  problemsAdded,
-  problemsUpdated,
-  errorsCount,
-  createdAt
-FROM sync_logs 
-ORDER BY createdAt DESC 
-LIMIT 10;
 ```
-
-## 🛠️ Manual Operations
-
-### Manual Sync Trigger
-```bash
-# Trigger sync via GitHub Actions
-curl -X POST \
-  -H "Authorization: token YOUR_GITHUB_TOKEN" \
-  -H "Accept: application/vnd.github.v3+json" \
-  https://api.github.com/repos/YOUR_USERNAME/YOUR_REPO/actions/workflows/sync-leetcode-data.yml/dispatches \
-  -d '{"ref":"main","inputs":{"force_sync":"true"}}'
-```
-
-### Local Testing
-```bash
-# Test change detection
-node scripts/detect-changes.js path/to/source path/to/current
-
-# Validate data integrity
-node scripts/validate-data.js public/data
-
-# Run database sync (requires DATABASE_URL)
-node scripts/sync-database.js
-
-# Generate companies list
-node scripts/generate-companies-list.js public/data
-```
-
-### Database Management
-```bash
-# View sync logs
-npx prisma studio
-
-# Run migrations
-npx prisma migrate deploy
-
-# Reset database (caution!)
-npx prisma migrate reset
+public/data/
+├── Accenture/
+│   ├── 1. Thirty Days.csv
+│   ├── 2. Three Months.csv
+│   ├── 3. Six Months.csv
+│   ├── 4. More Than Six Months.csv
+│   └── 5. All.csv
+├── Adobe/
+│   └── ... (same structure)
+└── ... (other companies)
 ```
 
 ## 🔧 Configuration
 
 ### Environment Variables
-```bash
-# Required for sync operations
-DATABASE_URL=postgresql://...
+
+**Required for Sync Pipeline:**
+```env
+WEBHOOK_SECRET=your-webhook-secret-for-data-sync
+```
+
+**Optional for Enhanced Features:**
+```env
 VERCEL_TOKEN=your-vercel-token
-VERCEL_PROJECT_ID=your-project-id
-
-# Source repository (configurable)
-LEETCODE_REPO_URL=https://github.com/krishnadey30/LeetCode-Questions-CompanyWise
+VERCEL_ORG_ID=your-vercel-org-id
+VERCEL_PROJECT_ID=your-vercel-project-id
 ```
 
-### Sync Schedule
-The sync runs daily at 6 AM UTC. To modify:
+### Manual Sync
 
-```yaml
-# .github/workflows/sync-leetcode-data.yml
-schedule:
-  - cron: '0 6 * * *'  # Change time here
+You can manually trigger a sync using:
+
+```bash
+# Manual sync script
+npm run sync
+
+# Or trigger via API
+curl -X POST https://your-app.vercel.app/api/sync-data \
+  -H "Content-Type: application/json" \
+  -H "x-webhook-secret: your-webhook-secret"
 ```
 
-### Data Sources
-Currently syncs from: `krishnadey30/LeetCode-Questions-CompanyWise`
+## 📊 Sync Status API
 
-To change source repository, update `LEETCODE_REPO_URL` in the workflow.
+### Endpoint: `/api/sync-data`
 
-## 🚨 Error Handling & Troubleshooting
+**Method**: POST
+**Headers**: 
+- `x-webhook-secret`: Your webhook secret
+- `Content-Type: application/json`
+
+**Response**:
+```json
+{
+  "success": true,
+  "message": "Data sync completed successfully",
+  "timestamp": "2024-01-15T10:30:00Z",
+  "stats": {
+    "companies_processed": 150,
+    "files_updated": 75,
+    "errors": 0
+  }
+}
+```
+
+## 🛠️ Troubleshooting
 
 ### Common Issues
 
-1. **Source Repository Unavailable**
-   - Check if source repo is accessible
-   - Verify repository URL is correct
-   - Network connectivity issues
+1. **Sync Failures**
+   - Check GitHub Actions logs
+   - Verify webhook secret is correct
+   - Ensure repository permissions are sufficient
 
-2. **Database Connection Failed**
-   - Verify `DATABASE_URL` is correct
-   - Check database server status
-   - Ensure database has required permissions
+2. **Data Not Updating**
+   - Verify `/public/data` directory structure
+   - Check if source repository has new commits
+   - Test manual sync command
 
-3. **Data Validation Errors**
-   - CSV format changes in source
-   - Missing required columns
-   - Invalid data values
+3. **Deployment Issues**
+   - Check Vercel deployment logs
+   - Verify build process completes successfully
+   - Ensure no CSV parsing errors
 
-4. **Deployment Failures**
-   - Vercel token expired
-   - Build errors in production
-   - Environment variables missing
+### Manual Recovery
 
-### Debugging Steps
+If automated sync fails, you can manually update:
 
-1. **Check Workflow Logs**
-   ```bash
-   # View in GitHub Actions tab
-   https://github.com/YOUR_USERNAME/YOUR_REPO/actions
-   ```
+```bash
+# 1. Clone source repository
+git clone https://github.com/krishnadey30/LeetCode-Questions-CompanyWise.git temp-source
 
-2. **Examine Sync Logs**
-   ```sql
-   SELECT * FROM sync_logs WHERE status = 'FAILED' ORDER BY createdAt DESC;
-   ```
+# 2. Copy data to your repository
+cp -r temp-source/* public/data/
 
-3. **Manual Validation**
-   ```bash
-   # Test data validation locally
-   node scripts/validate-data.js public/data
-   ```
-
-4. **Database Health Check**
-   ```bash
-   # Test database connection
-   npx prisma db push --preview-feature
-   ```
-
-## 📈 Performance & Optimization
-
-### Sync Performance
-- **Incremental Updates**: Only processes changed files
-- **Batch Operations**: Efficient database upserts
-- **Error Recovery**: Continues processing after individual failures
-- **Resource Limits**: GitHub Actions 6-hour timeout
-
-### Database Optimization
-- **Indexes**: Optimized queries for company/problem lookups
-- **Constraints**: Prevents duplicate data
-- **Cleanup**: Automatic removal of old sync logs
-- **Connection Pooling**: Efficient database connections
-
-## 🔒 Security Considerations
-
-### Access Control
-- GitHub Actions uses repository secrets
-- Database access restricted to sync operations
-- No sensitive data in sync logs
-
-### Data Integrity
-- Validation before database updates
-- Backup creation before major changes
-- Rollback capabilities for failed syncs
-
-### Monitoring
-- Failed sync notifications via GitHub issues
-- Detailed error logging for debugging
-- Audit trail of all sync operations
+# 3. Commit and push
+git add public/data
+git commit -m "Manual data sync"
+git push
+```
 
 ## 🎯 Benefits
 
-✅ **Always Up-to-Date**: Latest LeetCode problems automatically available  
-✅ **Zero Maintenance**: Fully automated sync process  
-✅ **Error Recovery**: Robust error handling and notifications  
-✅ **Data Integrity**: Comprehensive validation and backup  
-✅ **Performance**: Efficient incremental updates  
-✅ **Monitoring**: Detailed logging and statistics  
-✅ **Flexibility**: Manual trigger and configuration options  
+### For Users
+- ✅ **Always Current**: Latest problem sets automatically
+- ✅ **No Maintenance**: Zero user intervention required
+- ✅ **Reliable**: Automated validation and error handling
+- ✅ **Fast**: Client-side data loading
 
-## 🔮 Future Enhancements
+### For Developers
+- ✅ **Simplified**: No database management
+- ✅ **Scalable**: Static files scale infinitely
+- ✅ **Maintainable**: Clear separation of concerns
+- ✅ **Cost-effective**: No database hosting costs
 
-- **Multiple Source Repositories**: Support for additional data sources
-- **Real-time Sync**: Webhook-based instant updates
-- **Data Analytics**: Trend analysis and insights
-- **Custom Filters**: Selective company/timeframe syncing
-- **Performance Metrics**: Detailed timing and resource usage
-- **Notification Channels**: Slack, Discord, or email notifications
+## 📈 Monitoring
+
+### GitHub Actions
+Monitor sync status in your repository's Actions tab:
+- ✅ Daily sync runs at 6 AM UTC
+- 📊 View detailed logs and execution times
+- 🚨 Automatic issue creation on failures
+
+### Vercel Deployments
+Track deployments in Vercel dashboard:
+- 🚀 Automatic deployments on data updates
+- 📱 Preview deployments for testing
+- 📊 Performance metrics and analytics
+
+## 🔄 Future Enhancements
+
+The sync system is designed to be extensible:
+
+1. **Multiple Sources**: Support for additional problem sources
+2. **Custom Filters**: Company-specific problem filtering
+3. **Advanced Validation**: Enhanced data quality checks
+4. **Rollback Support**: Automatic rollback on validation failures
+5. **Real-time Updates**: WebSocket-based live updates
 
 ---
 
-**Your LeetCode Nexus now automatically stays synchronized with the latest problem data!** 🚀 
+## 🎉 Summary
+
+The simplified sync system provides:
+- 🔄 **Automated Updates**: Daily synchronization with source repository
+- 📁 **File-based Storage**: No database complexity
+- 🚀 **Fast Deployment**: Instant updates via Vercel
+- 🛡️ **Error Handling**: Robust validation and recovery
+- 📊 **Monitoring**: Complete visibility into sync process
+
+Your LeetCode Nexus stays automatically updated with zero maintenance! 🎯 

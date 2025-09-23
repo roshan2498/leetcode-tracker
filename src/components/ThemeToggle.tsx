@@ -2,9 +2,37 @@
 
 import { useTheme } from "./ThemeProvider";
 import { Sun, Moon, Palette } from "lucide-react";
+import { useEffect, useState } from "react";
 
 export default function ThemeToggle() {
-  const { theme, toggleTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Only try to use theme context after component is mounted
+  let theme = "dark";
+  let toggleTheme = () => {};
+  
+  try {
+    const themeContext = useTheme();
+    theme = themeContext.theme;
+    toggleTheme = themeContext.toggleTheme;
+  } catch (_) {
+    // ThemeProvider not available during SSR, use defaults
+  }
+
+  // Don't render theme toggle until mounted to prevent hydration issues
+  if (!mounted) {
+    return (
+      <div className="group relative p-3 backdrop-blur-sm bg-white/10 border border-white/20 dark:border-white/10 rounded-xl transition-all duration-300 shadow-lg">
+        <div className="relative flex items-center justify-center">
+          <Moon className="h-5 w-5 text-slate-700 dark:text-gray-200 transition-all duration-300" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative">

@@ -15,4 +15,8 @@ README.md
 coverage
 .nyc_output
 .vercel
-*.md 
+*.md
+.last-sync-commit
+scripts/
+.github/
+backup/ 

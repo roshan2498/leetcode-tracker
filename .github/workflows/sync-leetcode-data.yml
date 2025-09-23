@@ -19,21 +19,18 @@ on:
     types: [leetcode-data-updated]
 
 env:
-  DATABASE_URL: ${{ secrets.DATABASE_URL }}
   LEETCODE_REPO_URL: "https://github.com/krishnadey30/LeetCode-Questions-CompanyWise"
 
 jobs:
-  check-updates:
+  sync-data:
     runs-on: ubuntu-latest
-    name: Check for LeetCode Data Updates
-    outputs:
-      has_updates: ${{ steps.check.outputs.has_updates }}
-      new_companies: ${{ steps.check.outputs.new_companies }}
-      updated_companies: ${{ steps.check.outputs.updated_companies }}
-      
+    name: Sync LeetCode Data to Repository
+    
     steps:
       - name: Checkout Current Repository
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
         
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -44,16 +41,17 @@ jobs:
       - name: Install Dependencies
         run: npm ci
         
-      - name: Clone LeetCode Repository
+      - name: Clone LeetCode Source Repository
         run: |
           git clone ${{ env.LEETCODE_REPO_URL }} leetcode-source
           cd leetcode-source
           echo "LATEST_COMMIT=$(git rev-parse HEAD)" >> $GITHUB_ENV
+          echo "Latest source commit: $(git rev-parse HEAD)"
           
       - name: Check for Updates
         id: check
         run: |
-          # Get last sync commit from our database or file
+          # Get last sync commit
           LAST_SYNC_COMMIT=$(cat .last-sync-commit 2>/dev/null || echo "")
           
           echo "Last sync commit: $LAST_SYNC_COMMIT"
@@ -61,191 +59,102 @@ jobs:
           
           if [ "$LAST_SYNC_COMMIT" != "$LATEST_COMMIT" ] || [ "${{ github.event.inputs.force_sync }}" = "true" ]; then
             echo "has_updates=true" >> $GITHUB_OUTPUT
-            
-            # Check for new/updated companies
-            node scripts/detect-changes.js leetcode-source public/data > changes.json
-            
-            NEW_COMPANIES=$(cat changes.json | jq -r '.new_companies | join(",")')
-            UPDATED_COMPANIES=$(cat changes.json | jq -r '.updated_companies | join(",")')
-            
-            echo "new_companies=$NEW_COMPANIES" >> $GITHUB_OUTPUT
-            echo "updated_companies=$UPDATED_COMPANIES" >> $GITHUB_OUTPUT
+            echo "Updates detected or force sync requested"
           else
             echo "has_updates=false" >> $GITHUB_OUTPUT
+            echo "No updates needed"
           fi
-
-  sync-data:
-    runs-on: ubuntu-latest
-    name: Sync LeetCode Data
-    needs: check-updates
-    if: needs.check-updates.outputs.has_updates == 'true'
-    
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
           
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-          cache: 'npm'
-          
-      - name: Install Dependencies
-        run: npm ci
-        
-      - name: Clone LeetCode Repository
+      - name: Validate Source Data
+        if: steps.check.outputs.has_updates == 'true'
         run: |
-          git clone ${{ env.LEETCODE_REPO_URL }} leetcode-source
-          cd leetcode-source
-          echo "LATEST_COMMIT=$(git rev-parse HEAD)" >> $GITHUB_ENV
-          
-      - name: Backup Current Data
-        run: |
-          mkdir -p backup/$(date +%Y%m%d_%H%M%S)
-          cp -r public/data backup/$(date +%Y%m%d_%H%M%S)/
+          echo "Validating source data structure..."
+          node scripts/validate-data.js leetcode-source
           
       - name: Sync Data Files
+        if: steps.check.outputs.has_updates == 'true'
         run: |
-          # Copy new data files
-          rsync -av --delete leetcode-source/ public/data/ \
-            --exclude='.git' \
-            --exclude='*.md' \
-            --exclude='*.txt' \
-            --include='*/' \
-            --include='*.csv' \
-            --exclude='*'
+          echo "Syncing data files..."
           
-      - name: Generate Companies List
-        run: |
-          node scripts/generate-companies-list.js public/data > src/data/companies.json
-          
-      - name: Validate Data Integrity
-        run: |
-          node scripts/validate-data.js public/data
-          
-      - name: Update Database Schema (if needed)
-        run: |
-          # Generate Prisma client with latest schema
-          npx prisma generate
-          
-          # Run any pending migrations
-          npx prisma migrate deploy
-          
-      - name: Sync Database
-        run: |
-          node scripts/sync-database.js
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          
-      - name: Update Sync Record
-        run: |
-          echo "$LATEST_COMMIT" > .last-sync-commit
-          
-      - name: Commit Changes
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "LeetCode Data Sync Bot"
-          
-          git add .
-          
-          if git diff --staged --quiet; then
-            echo "No changes to commit"
-          else
-            git commit -m "🔄 Auto-sync: Updated LeetCode data
-            
-            📊 **Sync Summary:**
-            - New Companies: ${{ needs.check-updates.outputs.new_companies || 'None' }}
-            - Updated Companies: ${{ needs.check-updates.outputs.updated_companies || 'None' }}
-            - Source Commit: $LATEST_COMMIT
-            - Sync Time: $(date -u)
-            
-            🤖 This is an automated sync from the LeetCode repository.
-            "
-            
-            git push
+          # Backup current data
+          if [ -d "public/data" ]; then
+            cp -r public/data public/data.backup
           fi
           
-      - name: Create Deployment
-        if: success()
+          # Copy new data
+          rm -rf public/data
+          cp -r leetcode-source public/data
+          
+          # Generate companies list
+          node scripts/generate-companies-list.js public/data
+          
+          # Update last sync commit
+          echo "$LATEST_COMMIT" > .last-sync-commit
+          
+      - name: Check for Changes
+        if: steps.check.outputs.has_updates == 'true'
+        id: changes
         run: |
-          # Trigger Vercel deployment
-          curl -X POST "https://api.vercel.com/v1/integrations/deploy/prj_${{ secrets.VERCEL_PROJECT_ID }}/prod" \
-            -H "Authorization: Bearer ${{ secrets.VERCEL_TOKEN }}" \
-            -H "Content-Type: application/json" \
-            -d '{"ref": "main", "target": "production"}'
-
-  notify-results:
-    runs-on: ubuntu-latest
-    name: Notify Sync Results
-    needs: [check-updates, sync-data]
-    if: always()
-    
-    steps:
-      - name: Create Issue on Sync Failure
-        if: failure()
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const title = `🚨 LeetCode Data Sync Failed - ${new Date().toISOString().split('T')[0]}`;
-            const body = `
-            ## Sync Failure Report
-            
-            **Workflow Run:** ${{ github.run_id }}
-            **Trigger:** ${{ github.event_name }}
-            **Time:** ${new Date().toISOString()}
-            
-            ### Failure Details
-            - **Check Updates Status:** ${{ needs.check-updates.result }}
-            - **Sync Data Status:** ${{ needs.sync-data.result }}
-            
-            ### Investigation Steps
-            1. Check the [workflow logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
-            2. Verify the source repository is accessible
-            3. Check database connectivity
-            4. Validate environment variables
-            
-            ### Potential Causes
-            - Source repository structure changed
-            - Database connection issues
-            - File format changes in CSV data
-            - Network connectivity problems
-            
-            This issue was automatically created by the sync workflow.
-            `;
-            
-            await github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title: title,
-              body: body,
-              labels: ['bug', 'automation', 'data-sync']
-            });
-            
-      - name: Comment on Success
-        if: success() && needs.check-updates.outputs.has_updates == 'true'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const title = `✅ LeetCode Data Sync Completed Successfully`;
-            const body = `
-            ## Sync Success Report
-            
-            **Workflow Run:** ${{ github.run_id }}
-            **Time:** ${new Date().toISOString()}
-            
-            ### Changes Applied
-            - **New Companies:** ${{ needs.check-updates.outputs.new_companies || 'None' }}
-            - **Updated Companies:** ${{ needs.check-updates.outputs.updated_companies || 'None' }}
-            
-            ### Next Steps
-            - Data is now available in production
-            - Database has been updated with new problems
-            - Users will see the latest LeetCode problems
-            
-            🎉 Your LeetCode Nexus is now up-to-date!
-            `;
-            
-            // Create a discussion instead of issue for success
-            console.log(body);
+          git add -A
+          if git diff --cached --quiet; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "No file changes detected"
+          else
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            echo "File changes detected"
+          fi
+          
+      - name: Commit and Push Changes
+        if: steps.check.outputs.has_updates == 'true' && steps.changes.outputs.has_changes == 'true'
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          
+          # Create commit message with statistics
+          COMPANIES_COUNT=$(find public/data -name "*.csv" -path "*/1. Thirty Days.csv" | wc -l)
+          
+          git commit -m "🔄 Auto-sync LeetCode data
+          
+          - Source commit: $LATEST_COMMIT
+          - Companies: $COMPANIES_COUNT
+          - Timestamp: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+          - Triggered by: ${{ github.event_name }}"
+          
+          git push
+          
+      - name: Create Summary
+        if: steps.check.outputs.has_updates == 'true'
+        run: |
+          echo "## 🔄 LeetCode Data Sync Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status**: ✅ Success" >> $GITHUB_STEP_SUMMARY
+          echo "- **Source Commit**: \`$LATEST_COMMIT\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Timestamp**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "- **Trigger**: ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          
+          if [ -d "public/data" ]; then
+            COMPANIES_COUNT=$(find public/data -name "*.csv" -path "*/1. Thirty Days.csv" | wc -l)
+            echo "- **Companies Processed**: $COMPANIES_COUNT" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "${{ steps.changes.outputs.has_changes }}" = "true" ]; then
+            echo "- **Files Updated**: ✅ Yes" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- **Files Updated**: ❌ No changes" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+      - name: Report No Updates
+        if: steps.check.outputs.has_updates == 'false'
+        run: |
+          echo "## 📋 LeetCode Data Sync Status" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status**: ✅ Up to date" >> $GITHUB_STEP_SUMMARY
+          echo "- **Message**: No updates available" >> $GITHUB_STEP_SUMMARY
+          echo "- **Last Sync**: \`$(cat .last-sync-commit 2>/dev/null || echo 'Never')\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Timestamp**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -rf leetcode-source
+          rm -rf public/data.backup 2>/dev/null || true

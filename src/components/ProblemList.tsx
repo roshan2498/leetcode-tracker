@@ -1,8 +1,13 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
-import { CompanyData, UserProgress } from "@/types";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { CompanyData } from "@/types";
 import { getDifficultyColor, getStatusColor } from "@/lib/utils";
+import { 
+  getProgressForCompany, 
+  updateProgressInStorage, 
+  createProgress 
+} from "@/lib/localStorage";
 import { 
   Calendar, 
   Clock, 
@@ -25,7 +30,17 @@ interface ProblemListProps {
 export default function ProblemList({ company }: ProblemListProps) {
   const [companyData, setCompanyData] = useState<CompanyData | null>(null);
   const [selectedTimeframe, setSelectedTimeframe] = useState<string>("All");
-  const [userProgress, setUserProgress] = useState<UserProgress[]>([]);
+  const [userProgress, setUserProgress] = useState<Array<{
+    id: string;
+    problemId: string;
+    company: string;
+    difficulty: string;
+    title: string;
+    status: "not_started" | "in_progress" | "completed";
+    completedAt?: string | null;
+    createdAt: string;
+    updatedAt: string;
+  }>>([]);
   const [loading, setLoading] = useState(true);
   
   // Pagination and search states
@@ -37,7 +52,7 @@ export default function ProblemList({ company }: ProblemListProps) {
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
-  const timeframes = ["Thirty Days", "Three Months", "Six Months", "More Than Six Months", "All"];
+  const timeframes = useMemo(() => ["Thirty Days", "Three Months", "Six Months", "More Than Six Months", "All"], []);
 
   // Load selected timeframe from localStorage on component mount
   useEffect(() => {
@@ -45,7 +60,7 @@ export default function ProblemList({ company }: ProblemListProps) {
     if (savedTimeframe && timeframes.includes(savedTimeframe)) {
       setSelectedTimeframe(savedTimeframe);
     }
-  }, []);
+  }, [timeframes]);
 
   // Save timeframe to localStorage when it changes
   const handleTimeframeChange = (timeframe: string) => {
@@ -59,6 +74,7 @@ export default function ProblemList({ company }: ProblemListProps) {
     setCurrentPage(1);
   }, [searchTerm, difficultyFilter, statusFilter, sortBy, sortOrder]);
 
+  // Load company data and progress from local storage
   useEffect(() => {
     if (!company) return;
 
@@ -104,20 +120,16 @@ export default function ProblemList({ company }: ProblemListProps) {
         })
     );
 
-    Promise.all([
-      Promise.all(filePromises).then((results) => {
+    Promise.all(filePromises)
+      .then((results) => {
         const problems = Object.fromEntries(results);
-        return { 
+        setCompanyData({ 
           name: company, 
           problems
-        };
-      }),
-      fetch("/api/progress")
-        .then((res) => res.json())
-        .then((progress: UserProgress[]) => progress.filter((p) => p.company === company))
-    ])
-      .then(([data, progress]) => {
-        setCompanyData(data);
+        });
+        
+        // Load progress from local storage
+        const progress = getProgressForCompany(company);
         setUserProgress(progress);
         setLoading(false);
       })
@@ -135,45 +147,50 @@ export default function ProblemList({ company }: ProblemListProps) {
     if (!problem) return;
 
     try {
-      const response = await fetch("/api/progress", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          problemId: problem.Title,
+      // Find existing progress or create new
+      const existingProgress = userProgress.find(p => p.problemId === problemId);
+      
+      let updatedProgress;
+      if (existingProgress) {
+        updatedProgress = {
+          ...existingProgress,
+          status: status as "not_started" | "in_progress" | "completed",
+          completedAt: status === "completed" ? new Date().toISOString() : null,
+          updatedAt: new Date().toISOString(),
+        };
+      } else {
+        updatedProgress = createProgress(
+          problemId,
           company,
-          difficulty: problem.Difficulty,
-          title: problem.Title,
-          status,
-        }),
-      });
-
-      if (response.ok) {
-        const updatedProgress = await response.json();
-        setUserProgress((prev) => {
-          const filtered = prev.filter((p) => p.problemId !== problemId);
-          return [...filtered, updatedProgress];
-        });
-        
-        // Dispatch custom event to notify other components
-        window.dispatchEvent(new CustomEvent("progressUpdated"));
+          problem.Difficulty,
+          problem.Title,
+          status as "not_started" | "in_progress" | "completed"
+        );
       }
+
+      // Update local storage
+      const allProgress = updateProgressInStorage(updatedProgress);
+      
+      // Update local state
+      setUserProgress(allProgress.filter(p => p.company === company));
+      
+      // Dispatch custom event to notify other components
+      window.dispatchEvent(new CustomEvent("progressUpdated"));
     } catch (error) {
       console.error("Error updating progress:", error);
     }
   };
 
-  const getProblemStatus = (title: string): string => {
+  const getProblemStatus = useCallback((title: string): string => {
     const progress = userProgress.find((p) => p.problemId === title);
     return progress?.status || "not_started";
-  };
+  }, [userProgress]);
 
   // Filter and search logic
   const filteredAndSortedProblems = useMemo(() => {
     const problems = companyData?.problems[selectedTimeframe as keyof typeof companyData.problems] || [];
     
-    let filtered = problems.filter((problem) => {
+    const filtered = problems.filter((problem) => {
       // Search filter
       const searchMatch = searchTerm === "" || 
         problem.Title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -219,7 +236,7 @@ export default function ProblemList({ company }: ProblemListProps) {
     });
 
     return filtered;
-  }, [companyData, selectedTimeframe, searchTerm, difficultyFilter, statusFilter, sortBy, sortOrder, userProgress]);
+  }, [companyData, selectedTimeframe, searchTerm, difficultyFilter, statusFilter, sortBy, sortOrder, userProgress, getProblemStatus]);
 
   // Pagination logic
   const totalPages = Math.ceil(filteredAndSortedProblems.length / itemsPerPage);

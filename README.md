@@ -1,15 +1,15 @@
 # LeetCode Tracker
 
-A Next.js application that helps you track your LeetCode progress by company. This app uses the [leetcode-company-wise-problems](https://github.com/liquidslr/leetcode-company-wise-problems) repository to provide company-specific problem lists.
+A simple Next.js application that helps you track your LeetCode progress by company. This app uses the [leetcode-company-wise-problems](https://github.com/liquidslr/leetcode-company-wise-problems) repository to provide company-specific problem lists and stores your progress locally in your browser.
 
 ## Features
 
-- 🔐 Google OAuth authentication
-- 📊 Progress tracking by company
+- 📊 Progress tracking by company (stored locally)
 - 📈 Visual progress statistics
 - 🏢 Company-wise problem organization
 - ⏰ Time-based problem filtering (30 days, 3 months, 6 months, etc.)
-- �� Persistent progress storage
+- 💾 Local storage for progress (no account needed)
+- 🔄 Automated data sync pipeline to keep problem lists updated
 
 ## Setup
 
@@ -21,34 +21,7 @@ cd leetcode-tracker
 npm install
 ```
 
-### 2. Set up Google OAuth
-
-1. Go to the [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a new project or select an existing one
-3. Enable the Google+ API
-4. Create OAuth 2.0 credentials
-5. Add `http://localhost:3000/api/auth/callback/google` to authorized redirect URIs
-
-### 3. Environment Variables
-
-Create a `.env` file in the root directory:
-
-```env
-DATABASE_URL="file:./dev.db"
-NEXTAUTH_URL="http://localhost:3000"
-NEXTAUTH_SECRET="your-secret-key-here"
-GOOGLE_CLIENT_ID="your-google-client-id"
-GOOGLE_CLIENT_SECRET="your-google-client-secret"
-```
-
-### 4. Database Setup
-
-```bash
-npx prisma generate
-npx prisma migrate dev
-```
-
-### 5. Run the Application
+### 2. Run the Application
 
 ```bash
 npm run dev
@@ -58,32 +31,57 @@ Visit `http://localhost:3000` to see the application.
 
 ## Usage
 
-1. **Sign In**: Click "Sign in with Google" to authenticate
-2. **Select Company**: Choose a company from the sidebar to view their problems
-3. **Track Progress**: Use the dropdown next to each problem to mark your progress:
+1. **Select Company**: Choose a company from the dropdown to view their problems
+2. **Track Progress**: Use the dropdown next to each problem to mark your progress:
    - Not Started
    - In Progress
    - Completed
-4. **View Stats**: See your completion rate and progress statistics in the sidebar
+3. **View Stats**: See your completion rate and progress statistics in the sidebar
+4. **Filter & Search**: Use the search bar and filters to find specific problems
+5. **Local Storage**: Your progress is automatically saved in your browser's local storage
 
 ## Data Source
 
 This application uses data from the [leetcode-company-wise-problems](https://github.com/liquidslr/leetcode-company-wise-problems) repository, which contains curated lists of LeetCode questions grouped by companies.
 
-## Tech Stack
+## Data Sync Pipeline
 
-- **Frontend**: Next.js 14, React, TypeScript, Tailwind CSS
-- **Authentication**: NextAuth.js with Google OAuth
-- **Database**: SQLite with Prisma ORM
-- **Data**: CSV files from leetcode-company-wise-problems repository
+The application includes a sync pipeline that automatically updates the problem lists from the source repository. This ensures you always have the latest company-specific problems without needing to manually update.
 
-## Contributing
+### Pipeline Configuration
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
+For production deployments, you can set up automatic data synchronization by configuring:
 
-## License
+```env
+WEBHOOK_SECRET="your-webhook-secret"
+VERCEL_TOKEN="your-vercel-token"
+VERCEL_ORG_ID="your-vercel-org-id"
+VERCEL_PROJECT_ID="your-vercel-project-id"
+```
 
-MIT License
+## Architecture
+
+- **Frontend**: Next.js 14 with TypeScript and Tailwind CSS
+- **Data Storage**: Browser Local Storage (no database required)
+- **Data Source**: CSV files from leetcode-company-wise-problems repository
+- **Sync Pipeline**: Automated scripts to update problem data
+
+## No Authentication Required
+
+This version has been simplified to work without any authentication. Your progress is stored locally in your browser, making it:
+- ✅ **Simple**: No account creation needed
+- ✅ **Private**: Data stays on your device
+- ✅ **Fast**: No server round-trips for progress updates
+- ⚠️ **Note**: Progress is tied to your browser/device
+
+## Development
+
+The application includes several helpful scripts:
+
+```bash
+npm run dev          # Start development server
+npm run build        # Build for production
+npm run start        # Start production server
+npm run lint         # Run linting
+npm run sync         # Manually sync data from source repository
+```
