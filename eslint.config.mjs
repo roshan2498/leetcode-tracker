@@ -18,6 +18,8 @@ const eslintConfig = [
       "out/**",
       "build/**",
       "next-env.d.ts",
+      "scripts/**", // Ignore scripts directory - uses CommonJS
+      ".github/**", // Ignore GitHub workflows
     ],
   },
 ];

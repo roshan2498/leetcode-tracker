@@ -19,7 +19,7 @@ export default function ThemeToggle() {
     const themeContext = useTheme();
     theme = themeContext.theme;
     toggleTheme = themeContext.toggleTheme;
-  } catch (_) {
+  } catch {
     // ThemeProvider not available during SSR, use defaults
   }
 

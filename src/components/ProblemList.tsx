@@ -236,7 +236,7 @@ export default function ProblemList({ company }: ProblemListProps) {
     });
 
     return filtered;
-  }, [companyData, selectedTimeframe, searchTerm, difficultyFilter, statusFilter, sortBy, sortOrder, userProgress, getProblemStatus]);
+  }, [companyData, selectedTimeframe, searchTerm, difficultyFilter, statusFilter, sortBy, sortOrder, getProblemStatus]);
 
   // Pagination logic
   const totalPages = Math.ceil(filteredAndSortedProblems.length / itemsPerPage);
