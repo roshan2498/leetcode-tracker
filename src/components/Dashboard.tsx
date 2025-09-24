@@ -50,7 +50,24 @@ export default function Dashboard() {
             }
           } catch (staticError) {
             console.error("❌ Static JSON fallback failed:", staticError instanceof Error ? staticError.message : String(staticError));
-            throw new Error("Both API and static fallback failed");
+            
+            // Final fallback: static API endpoint
+            try {
+              console.log("🔍 Trying static API endpoint as final fallback...");
+              const staticApiResponse = await fetch("/api/companies-static");
+              
+              if (staticApiResponse.ok) {
+                data = await staticApiResponse.json();
+                dataSource = "Static API";
+                console.log(`✅ Loaded ${data.length} companies from static API`);
+              } else {
+                console.error(`❌ Static API response not OK: ${staticApiResponse.status} ${staticApiResponse.statusText}`);
+                throw new Error("All fallbacks failed");
+              }
+            } catch (staticApiError) {
+              console.error("❌ Static API fallback failed:", staticApiError instanceof Error ? staticApiError.message : String(staticApiError));
+              throw new Error("All fallbacks failed");
+            }
           }
         }
 
