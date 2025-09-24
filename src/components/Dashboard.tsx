@@ -13,35 +13,71 @@ export default function Dashboard() {
 
   // Load selected company from localStorage and fetch companies
   useEffect(() => {
-    // Try API first, fallback to static JSON for static export
+        // Try API first, fallback to static JSON for static export
     const loadCompanies = async () => {
       try {
-        let data;
+        let data = [];
+        let dataSource = "unknown";
+        
+        // Try API first
         try {
+          console.log("🔍 Trying to fetch companies from API...");
           const apiResponse = await fetch("/api/companies");
+          
           if (apiResponse.ok) {
             data = await apiResponse.json();
+            dataSource = "API";
+            console.log(`✅ Loaded ${data.length} companies from API`);
           } else {
-            throw new Error("API not available");
+            console.warn(`⚠️  API response not OK: ${apiResponse.status} ${apiResponse.statusText}`);
+            throw new Error(`API responded with ${apiResponse.status}`);
           }
-        } catch {
-          // Fallback to static companies.json for static export
-          const staticResponse = await fetch("/companies.json");
-          data = await staticResponse.json();
+        } catch (apiError) {
+          console.warn("⚠️  API failed, trying static fallback:", apiError instanceof Error ? apiError.message : String(apiError));
+          
+          // Fallback to static companies.json
+          try {
+            console.log("🔍 Trying to fetch companies from static JSON...");
+            const staticResponse = await fetch("/companies.json");
+            
+            if (staticResponse.ok) {
+              data = await staticResponse.json();
+              dataSource = "Static JSON";
+              console.log(`✅ Loaded ${data.length} companies from static JSON`);
+            } else {
+              console.error(`❌ Static JSON response not OK: ${staticResponse.status} ${staticResponse.statusText}`);
+              throw new Error(`Static JSON responded with ${staticResponse.status}`);
+            }
+          } catch (staticError) {
+            console.error("❌ Static JSON fallback failed:", staticError instanceof Error ? staticError.message : String(staticError));
+            throw new Error("Both API and static fallback failed");
+          }
         }
-        
+
+        // Validate data
+        if (!Array.isArray(data) || data.length === 0) {
+          console.warn(`⚠️  Invalid or empty data from ${dataSource}:`, data);
+          data = [];
+        }
+
+        console.log(`📊 Final result: ${data.length} companies from ${dataSource}`);
         setCompanies(data);
-        
+
         // Try to restore from localStorage
         const savedCompany = localStorage.getItem("selectedCompany");
-        
+
         if (savedCompany && data.includes(savedCompany)) {
           setSelectedCompany(savedCompany);
+          console.log(`🔄 Restored company from localStorage: ${savedCompany}`);
         } else if (data.length > 0) {
           setSelectedCompany(data[0]);
+          console.log(`🎯 Selected first company: ${data[0]}`);
+        } else {
+          console.warn("⚠️  No companies available to select");
         }
       } catch (error) {
-        console.error("Error fetching companies:", error);
+        console.error("❌ Error in loadCompanies:", error);
+        setCompanies([]);
       }
     };
     

@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "npm run prebuild && next build --turbopack",
-    "prebuild": "node -e \"const fs = require('fs'); const path = require('path'); const dataPath = path.join(process.cwd(), 'public', 'data'); const companies = fs.readdirSync(dataPath, { withFileTypes: true }).filter(dirent => dirent.isDirectory() && !dirent.name.startsWith('.')).map(dirent => dirent.name).sort(); fs.writeFileSync(path.join(process.cwd(), 'public', 'companies.json'), JSON.stringify(companies, null, 2)); console.log('Generated companies.json with', companies.length, 'companies');\"",
+    "prebuild": "node scripts/generate-companies-list.js",
     "start": "next start",
     "lint": "eslint",
     "sync": "./sync-leetcode-data.sh",

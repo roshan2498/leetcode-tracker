@@ -3,64 +3,53 @@
 const fs = require('fs');
 const path = require('path');
 
-/**
- * Script to generate companies list from data directory
- * Usage: node generate-companies-list.js <data-directory>
- */
-
-function generateCompaniesList(dataDirectory) {
-  if (!fs.existsSync(dataDirectory)) {
-    throw new Error(`Data directory does not exist: ${dataDirectory}`);
-  }
-
-  // Get all company directories
-  const companies = fs.readdirSync(dataDirectory, { withFileTypes: true })
-    .filter(dirent => dirent.isDirectory() && !dirent.name.startsWith('.'))
-    .map(dirent => {
-      const companyPath = path.join(dataDirectory, dirent.name);
-      const csvFiles = fs.readdirSync(companyPath)
-        .filter(file => file.endsWith('.csv'))
-        .length;
-
-      return {
-        name: dirent.name,
-        slug: dirent.name.toLowerCase().replace(/[^a-z0-9]/g, '-'),
-        fileCount: csvFiles,
-        lastModified: fs.statSync(companyPath).mtime.toISOString()
-      };
-    })
-    .sort((a, b) => a.name.localeCompare(b.name));
-
-  const companiesData = {
-    companies: companies,
-    metadata: {
-      totalCompanies: companies.length,
-      generated: new Date().toISOString(),
-      source: 'LeetCode Questions CompanyWise Repository'
+function generateCompaniesList() {
+  try {
+    console.log('🔍 Generating companies list...');
+    
+    const dataPath = path.join(process.cwd(), 'public', 'data');
+    const outputPath = path.join(process.cwd(), 'public', 'companies.json');
+    
+    console.log('📂 Data path:', dataPath);
+    console.log('📄 Output path:', outputPath);
+    
+    // Check if data directory exists
+    if (!fs.existsSync(dataPath)) {
+      console.error('❌ Data directory not found:', dataPath);
+      process.exit(1);
     }
-  };
-
-  return companiesData;
+    
+    // Read companies from data directory
+    const companies = fs.readdirSync(dataPath, { withFileTypes: true })
+      .filter(dirent => {
+        // Only include directories and exclude hidden folders
+        const isValid = dirent.isDirectory() && !dirent.name.startsWith('.');
+        if (!isValid) {
+          console.log('⏭️  Skipping:', dirent.name, '(not a valid company directory)');
+        }
+        return isValid;
+      })
+      .map(dirent => dirent.name)
+      .sort();
+    
+    console.log(`✅ Found ${companies.length} companies`);
+    console.log('📋 Companies:', companies.slice(0, 5).join(', ') + (companies.length > 5 ? '...' : ''));
+    
+    // Write companies.json
+    fs.writeFileSync(outputPath, JSON.stringify(companies, null, 2));
+    
+    console.log('✅ Successfully generated companies.json');
+    console.log('📊 Total companies:', companies.length);
+    
+  } catch (error) {
+    console.error('❌ Error generating companies list:', error);
+    process.exit(1);
+  }
 }
 
-// Main execution
+// Run if called directly
 if (require.main === module) {
-  const args = process.argv.slice(2);
-  
-  if (args.length !== 1) {
-    console.error('Usage: node generate-companies-list.js <data-directory>');
-    process.exit(1);
-  }
-
-  const dataDirectory = args[0];
-
-  try {
-    const companiesData = generateCompaniesList(dataDirectory);
-    console.log(JSON.stringify(companiesData, null, 2));
-  } catch (error) {
-    console.error('Error generating companies list:', error.message);
-    process.exit(1);
-  }
+  generateCompaniesList();
 }
 
 module.exports = { generateCompaniesList }; 
